@@ -71,7 +71,7 @@ private:
     AttendanceInfo& info;
 };
 
-bool ReadAttendanceList(std::string filename, AttendanceEngine& engineine, int maxLines = MAX_NUM_OF_ATTEND_LIST);
+bool ReadAttendanceList(AttendanceEngine& engine);
 void OutputReport(const AttendanceInfo& info);
 void OutputRemovePlayer(const AttendanceInfo& info);
 

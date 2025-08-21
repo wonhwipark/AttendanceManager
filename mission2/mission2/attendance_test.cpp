@@ -134,8 +134,7 @@ TEST_F(FixtureAttendance, TestOutputRemovePlayer)
 
 TEST_F(FixtureAttendance, TestReadAttendanceList)
 {
-	std::string filename = "attendance_weekday_500.txt";
-    bool isOk = ReadAttendanceList(filename, engine, 500);
+    bool isOk = ReadAttendanceList(engine);
     EXPECT_EQ(isOk, true);
 }
 

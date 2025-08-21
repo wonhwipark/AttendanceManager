@@ -14,6 +14,8 @@
 #include &lt;fstream&gt;
 #include &lt;iostream&gt;
 
+using namespace std;
+
 // point
 static const int INVALID_POINT        = 0;
 static const int BASE_POINT_WEEKDAY   = 1;
@@ -131,24 +133,24 @@ void AttendanceEngine::ReportRemoved(InterfaceRemoveReporter&amp; reporter)
 <span style = "background-color:#dfd">	}
 }</span>
 
-bool ReadAttendanceList(std::string filename, AttendanceEngine&amp; engineine, int maxLines)
+bool ReadAttendanceList(AttendanceEngine&amp; engineine)
 <span style = "background-color:#dfd">{
-	std::ifstream fin(filename.c_str());
-	if (!fin.is_open()) return false;</span>
+	ifstream fin{ "attendance_weekday_500.txt" }; //500°³ µ¥ÀÌÅÍ ÀÔ·Â</span>
 
-<span style = "background-color:#fdd">	std::string player, dayStr;
-	int cnt = 0;
-	while (cnt &lt; maxLines &amp;&amp; (fin &gt;&gt; player &gt;&gt; dayStr)) {
-		engineine.AssignId(player);
-		int id = engineine.GetIdFromName(player);
-		Day_e dayIdx = GetIndexFromDay(dayStr);
-		if (dayIdx == INVALID_DAY) { ++cnt; continue; }
-		engineine.UpdateSpecialDays(id, dayIdx);
-		engineine.UpdateDayAndPoints(id, dayIdx);
-		++cnt;
+<span style = "background-color:#dfd">	for (int i = 0; i &lt; MAX_NUM_OF_ATTEND_LIST; i++) {
+		std::string player, dayString;
+		fin &gt;&gt; player &gt;&gt; dayString;</span>
+
+<span style = "background-color:#dfd">		engineine.AssignId(player);
+		int nameIdx = engineine.GetIdFromName(player);
+		Day_e dayIdx = GetIndexFromDay(dayString);</span>
+		//if (dayIdx == INVALID_DAY) return false;
+
+<span style = "background-color:#dfd">		engineine.UpdateSpecialDays(nameIdx, dayIdx);
+		engineine.UpdateDayAndPoints(nameIdx, dayIdx);
 	}
-	return true;</span>
-<span style = "background-color:#dfd">}</span>
+	return true;
+}</span>
 
 void OutputReport(const AttendanceInfo&amp; info)
 <span style = "background-color:#dfd">{
@@ -279,8 +281,6 @@ bool ReadAttendanceList(AttendanceInfo&amp; info)
 		AssignId(info, player);
 		int nameIdx = GetIdFromName(info, player);
 		int dayIdx = (int)GetIndexFromDay(dayString);
-		if (dayIdx == INVALID_DAY) return false;
-
 		UpdateSpecialDays(info, nameIdx, dayString);
 		UpdateDayAndPoints(info, nameIdx, dayIdx, GetBasePoint((Day_e)dayIdx));
 	}

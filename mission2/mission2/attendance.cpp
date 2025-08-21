@@ -3,6 +3,8 @@
 #include <fstream>
 #include <iostream>
 
+using namespace std;
+
 // point
 static const int INVALID_POINT        = 0;
 static const int BASE_POINT_WEEKDAY   = 1;
@@ -120,21 +122,21 @@ void AttendanceEngine::ReportRemoved(InterfaceRemoveReporter& reporter)
 	}
 }
 
-bool ReadAttendanceList(std::string filename, AttendanceEngine& engineine, int maxLines)
+bool ReadAttendanceList(AttendanceEngine& engineine)
 {
-	std::ifstream fin(filename.c_str());
-	if (!fin.is_open()) return false;
+	ifstream fin{ "attendance_weekday_500.txt" }; //500개 데이터 입력
 
-	std::string player, dayStr;
-	int cnt = 0;
-	while (cnt < maxLines && (fin >> player >> dayStr)) {
+	for (int i = 0; i < MAX_NUM_OF_ATTEND_LIST; i++) {
+		std::string player, dayString;
+		fin >> player >> dayString;
+
 		engineine.AssignId(player);
-		int id = engineine.GetIdFromName(player);
-		Day_e dayIdx = GetIndexFromDay(dayStr);
-		if (dayIdx == INVALID_DAY) { ++cnt; continue; }
-		engineine.UpdateSpecialDays(id, dayIdx);
-		engineine.UpdateDayAndPoints(id, dayIdx);
-		++cnt;
+		int nameIdx = engineine.GetIdFromName(player);
+		Day_e dayIdx = GetIndexFromDay(dayString);
+		//if (dayIdx == INVALID_DAY) return false;
+
+		engineine.UpdateSpecialDays(nameIdx, dayIdx);
+		engineine.UpdateDayAndPoints(nameIdx, dayIdx);
 	}
 	return true;
 }
@@ -268,8 +270,6 @@ bool ReadAttendanceList(AttendanceInfo& info)
 		AssignId(info, player);
 		int nameIdx = GetIdFromName(info, player);
 		int dayIdx = (int)GetIndexFromDay(dayString);
-		if (dayIdx == INVALID_DAY) return false;
-
 		UpdateSpecialDays(info, nameIdx, dayString);
 		UpdateDayAndPoints(info, nameIdx, dayIdx, GetBasePoint((Day_e)dayIdx));
 	}
