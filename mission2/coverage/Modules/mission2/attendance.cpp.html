@@ -1,0 +1,420 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+        <meta charset="utf-8"/>
+	    <title>attendance.cpp</title>
+	    <link href="../../third-party/google-code-prettify/prettify-CppCoverage.css" type="text/css" rel="stylesheet" />
+	    <script type="text/javascript" src="../../third-party/google-code-prettify/prettify.js"></script>
+	</head>
+    <body onload="prettyPrint()">
+        <h4></h4>
+        <pre class="prettyprint lang-cpp linenums">
+#if defined(_DEBUG)
+#include "attendance.h"
+#include &lt;fstream&gt;
+#include &lt;iostream&gt;
+
+// point
+static const int INVALID_POINT        = 0;
+static const int BASE_POINT_WEEKDAY   = 1;
+static const int BASE_POINT_WEEKEND   = 2;
+static const int BASE_POINT_WEDNESDAY = 3;
+
+// Bonus
+static const int BONUS_POINTS = 10;
+static const int COUNT_THRESHOLD_WEDNESDAY = 10;
+static const int COUNT_THRESHOLD_WEEKEND = 10;
+
+static const int POINT_THRESHOLD_GOLD = 50;
+static const int POINT_THRESHOLD_SILVER = 30;
+
+AttendanceInfo::AttendanceInfo()
+<span style = "background-color:#dfd">	: id_cnt(0)
+{
+	for (int i = 0; i &lt;= MAX_NUM_OF_ID; ++i) {
+		points[i] = INVALID_POINT;
+		grade[i] = NORMAL;
+		names[i].clear();
+		wedCnt[i] = weekendCnt[i] = 0;
+		for (int j = 0; j &lt; MAX_NUM_OF_WEEK; ++j) {
+			dateCnt[i][j] = 0;
+		}
+	}
+}</span>
+
+int GetBasePoint(const Day_e day)
+<span style = "background-color:#dfd">{
+	if (day == MONDAY)    return BASE_POINT_WEEKDAY;
+	if (day == TUESDAY)   return BASE_POINT_WEEKDAY;
+	if (day == WEDNESDAY) return BASE_POINT_WEDNESDAY;
+	if (day == THURSDAY)  return BASE_POINT_WEEKDAY;
+	if (day == FRIDAY)    return BASE_POINT_WEEKDAY;
+	if (day == SATURDAY)  return BASE_POINT_WEEKEND;
+	if (day == SUNDAY)    return BASE_POINT_WEEKEND;
+	return INVALID_POINT;
+}</span>
+
+<span style = "background-color:#dfd">Day_e GetIndexFromDay(const std::string&amp; dayString) {
+	if (dayString == "monday")    return MONDAY;
+	if (dayString == "tuesday")   return TUESDAY;
+	if (dayString == "wednesday") return WEDNESDAY;
+	if (dayString == "thursday")  return THURSDAY;
+	if (dayString == "friday")    return FRIDAY;
+	if (dayString == "saturday")  return SATURDAY;
+	if (dayString == "sunday")    return SUNDAY;
+	return INVALID_DAY;
+}</span>
+
+<span style = "background-color:#dfd">int CalcBonus(int wedCount, int weekendCount) {
+	int bonus = 0;
+	if (wedCount &gt;= COUNT_THRESHOLD_WEDNESDAY) bonus += BONUS_POINTS;
+	if (weekendCount &gt;= COUNT_THRESHOLD_WEEKEND)   bonus += BONUS_POINTS;
+	return bonus;
+}</span>
+
+<span style = "background-color:#dfd">Grade_e CalcGrade(int totalPoints) {
+	if (totalPoints &gt;= POINT_THRESHOLD_GOLD)   return GOLD;
+	if (totalPoints &gt;= POINT_THRESHOLD_SILVER) return SILVER;
+	return NORMAL;
+}</span>
+
+
+<span style = "background-color:#dfd">AttendanceEngine::AttendanceEngine(AttendanceInfo&amp; info) : info(info)
+{
+}</span>
+
+<span style = "background-color:#dfd">void AttendanceEngine::AssignId(const std::string&amp; player) {
+	if (info.idByName.count(player) == 0) {
+		if (info.id_cnt &gt;= info.maxIdLimit()) return;
+		info.id_cnt++;
+		info.idByName[player] = info.id_cnt;
+		info.names[info.id_cnt] = player;</span>
+	}
+<span style = "background-color:#dfd">}</span>
+
+int AttendanceEngine::GetIdFromName(const std::string&amp; player)
+<span style = "background-color:#dfd">{
+	std::map&lt;std::string, int&gt;::const_iterator it = info.idByName.find(player);
+	if (it == info.idByName.end()) return 0;
+	return it-&gt;second;
+}</span>
+
+void AttendanceEngine::UpdateSpecialDays(int id, Day_e day)
+<span style = "background-color:#dfd">{
+	if (id &lt;= 0 || id &gt; info.id_cnt) return;
+	if (day == WEDNESDAY) info.wedCnt[id]++;
+	if (day == SATURDAY || day == SUNDAY) info.weekendCnt[id]++;
+}</span>
+
+void AttendanceEngine::UpdateDayAndPoints(int id, Day_e day)
+<span style = "background-color:#dfd">{
+	if (id &lt;= 0 || id &gt; info.id_cnt) return;
+	if (day == INVALID_DAY) return;
+	info.dateCnt[id][day] += 1;
+	info.points[id] += GetBasePoint(day);
+}</span>
+
+void AttendanceEngine::UpdatePointAndGrades() 
+<span style = "background-color:#dfd">{
+	for (int i = 1; i &lt;= info.id_cnt; ++i) {
+		info.points[i] += CalcBonus(info.wedCnt[i], info.weekendCnt[i]);
+		info.grade[i] = CalcGrade(info.points[i]);
+	}
+}</span>
+
+void AttendanceEngine::ReportRemoved(InterfaceRemoveReporter&amp; reporter) 
+<span style = "background-color:#dfd">{
+	for (int i = 1; i &lt;= info.id_cnt; ++i) {
+		if (info.grade[i] == NORMAL &amp;&amp; info.wedCnt[i] == 0 &amp;&amp; info.weekendCnt[i] == 0) {
+			reporter.OnRemoved(info.names[i]);</span>
+		}
+<span style = "background-color:#dfd">	}
+}</span>
+
+bool ReadAttendanceList(std::string filename, AttendanceEngine&amp; engineine, int maxLines)
+<span style = "background-color:#dfd">{
+	std::ifstream fin(filename.c_str());
+	if (!fin.is_open()) return false;</span>
+
+<span style = "background-color:#fdd">	std::string player, dayStr;
+	int cnt = 0;
+	while (cnt &lt; maxLines &amp;&amp; (fin &gt;&gt; player &gt;&gt; dayStr)) {
+		engineine.AssignId(player);
+		int id = engineine.GetIdFromName(player);
+		Day_e dayIdx = GetIndexFromDay(dayStr);
+		if (dayIdx == INVALID_DAY) { ++cnt; continue; }
+		engineine.UpdateSpecialDays(id, dayIdx);
+		engineine.UpdateDayAndPoints(id, dayIdx);
+		++cnt;
+	}
+	return true;</span>
+<span style = "background-color:#dfd">}</span>
+
+void OutputReport(const AttendanceInfo&amp; info)
+<span style = "background-color:#dfd">{
+	for (int i = 1; i &lt;= info.id_cnt; ++i) {
+		std::cout &lt;&lt; "NAME: " &lt;&lt; info.names[i]</span>
+			&lt;&lt; ", POINT: " &lt;&lt; info.points[i]
+			&lt;&lt; ", GRADE: " &lt;&lt; (info.grade[i] == GOLD ? "GOLD" : (info.grade[i] == SILVER ? "SILVER" : "NORMAL"))
+			&lt;&lt; "\n";
+<span style = "background-color:#dfd">	}
+}</span>
+
+void OutputRemovePlayer(const AttendanceInfo&amp; info)
+<span style = "background-color:#dfd">{
+	std::cout &lt;&lt; "\nRemoved player\n==============\n";
+	for (int i = 1; i &lt;= info.id_cnt; ++i) {
+		if (info.grade[i] == NORMAL &amp;&amp; info.wedCnt[i] == 0 &amp;&amp; info.weekendCnt[i] == 0) {
+			std::cout &lt;&lt; info.names[i] &lt;&lt; "\n";</span>
+		}
+<span style = "background-color:#dfd">	}
+}</span>
+
+#else
+
+#include &lt;iostream&gt;
+#include &lt;fstream&gt;
+#include &lt;string&gt;
+#include &lt;map&gt;
+
+using namespace std;
+
+const int MAX_NUM_OF_ATTEND_LIST = 500;
+const int MAX_NUM_OF_ID = 100;
+const int MAX_NUM_OF_WEEK = 100;
+
+// point
+const int INVALID_POINT = 0;
+const int BASE_POINT_WEEKDAY = 1;
+const int BASE_POINT_WEDNESDAY = 3;
+const int BASE_POINT_WEEKEND = 2;
+
+// Bonus
+const int WED_BONUS_THRESHOLD = 10;
+const int WEEKEND_BONUS_THRESHOLD = 10;
+const int BONUS_POINTS = 10;
+
+// Threshold of Grade
+const int COUNT_THRESHOLD_WEDNESDAY = 10;
+const int COUNT_THRESHOLD_WEEKEND = 10;
+const int POINT_THRESHOLD_GOLD = 50;
+const int POINT_THRESHOLD_SILVER = 30;
+
+enum Grade_e { // Grade
+	NORMAL = 0,
+	GOLD = 1,
+	SILVER = 2
+};
+
+enum Day_e { // Day
+	MONDAY = 0,
+	TUESDAY = 1,
+	WEDNESDAY = 2,
+	THURSDAY = 3,
+	FRIDAY = 4,
+	SATURDAY = 5,
+	SUNDAY = 6,
+	INVALID_DAY
+};
+
+struct AttendanceInfo {
+	AttendanceInfo() : id_cnt(0) {
+		for (int i = 0; i &lt; MAX_NUM_OF_ID; i++) {
+			points[i] = 0;
+			grade[i] = NORMAL;
+			wedCnt[i] = 0;
+			weekendCnt[i] = 0;
+			names[i].clear();
+			for (int j = 0; j &lt; MAX_NUM_OF_WEEK; j++) {
+				dateCnt[i][j] = 0;
+			}
+		}
+	}
+	map&lt;string, int&gt; idByName;
+	int id_cnt;
+
+	int dateCnt[MAX_NUM_OF_ID][MAX_NUM_OF_WEEK]; // [id][dow]
+	int points[MAX_NUM_OF_ID];
+	int grade[MAX_NUM_OF_ID];
+	string names[MAX_NUM_OF_ID];
+
+	int wedCnt[MAX_NUM_OF_ID];
+	int weekendCnt[MAX_NUM_OF_ID];
+};
+
+bool ReadAttendanceList(AttendanceInfo&amp; info);
+void UpdatePointAndGrades(AttendanceInfo&amp; info);
+void OutputReport(AttendanceInfo&amp; info);
+void OutputRemovePlayer(AttendanceInfo&amp; info);
+
+void AssignId(AttendanceInfo&amp; info, std::string&amp; player);
+int GetIdFromName(AttendanceInfo&amp; info, const std::string&amp; player);
+Day_e GetIndexFromDay(const string&amp; dayString);
+int GetBasePoint(const Day_e day);
+void UpdateSpecialDays(AttendanceInfo&amp; info, const int nameIdx, const string&amp; dayString);
+void UpdateDayAndPoints(AttendanceInfo&amp; info, const int nameIdx, const int dayIdx, const int add_point);
+
+void RunAttendanceSystem() {
+	AttendanceInfo info;
+	bool isOk = ReadAttendanceList(info);
+	if (!isOk) return;
+
+	UpdatePointAndGrades(info);
+	OutputReport(info);
+	OutputRemovePlayer(info);
+}
+
+bool ReadAttendanceList(AttendanceInfo&amp; info)
+{
+	ifstream fin{ "attendance_weekday_500.txt" }; //500°³ µ¥ÀÌÅÍ ÀÔ·Â
+	if (!fin.is_open()) {
+		std::cout &lt;&lt; "Error opening file!" &lt;&lt; endl;
+		return false;
+	}
+
+	for (int i = 0; i &lt; MAX_NUM_OF_ATTEND_LIST; i++) {
+		string player, dayString;
+		fin &gt;&gt; player &gt;&gt; dayString;
+
+		AssignId(info, player);
+		int nameIdx = GetIdFromName(info, player);
+		int dayIdx = (int)GetIndexFromDay(dayString);
+		if (dayIdx == INVALID_DAY) return false;
+
+		UpdateSpecialDays(info, nameIdx, dayString);
+		UpdateDayAndPoints(info, nameIdx, dayIdx, GetBasePoint((Day_e)dayIdx));
+	}
+	return true;
+}
+
+void UpdatePointAndGrades(AttendanceInfo&amp; info)
+{
+	for (int i = 1; i &lt;= info.id_cnt; i++) {
+		if (info.dateCnt[i][WEDNESDAY] &gt;= COUNT_THRESHOLD_WEDNESDAY) {
+			info.points[i] += BONUS_POINTS;
+		}
+		if (info.dateCnt[i][SATURDAY] + info.dateCnt[i][SUNDAY] &gt;= COUNT_THRESHOLD_WEEKEND) {
+			info.points[i] += BONUS_POINTS;
+		}
+		if (info.points[i] &gt;= POINT_THRESHOLD_GOLD) {
+			info.grade[i] = GOLD;
+		}
+		else if (info.points[i] &gt;= POINT_THRESHOLD_SILVER) {
+			info.grade[i] = SILVER;
+		}
+		else {
+			info.grade[i] = NORMAL;
+		}
+	}
+}
+
+void OutputReport(AttendanceInfo&amp; info)
+{
+	if (info.id_cnt &gt;= MAX_NUM_OF_ID) return;
+	for (int i = 1; i &lt;= info.id_cnt; i++) {
+		std::cout &lt;&lt; "NAME : " &lt;&lt; info.names[i] &lt;&lt; ", ";
+		std::cout &lt;&lt; "POINT : " &lt;&lt; info.points[i] &lt;&lt; ", ";
+		std::cout &lt;&lt; "GRADE : ";
+
+		if (info.grade[i] == GOLD) {
+			std::cout &lt;&lt; "GOLD" &lt;&lt; "\n";
+		}
+		else if (info.grade[i] == SILVER) {
+			std::cout &lt;&lt; "SILVER" &lt;&lt; "\n";
+		}
+		else {
+			std::cout &lt;&lt; "NORMAL" &lt;&lt; "\n";
+		}
+	}
+}
+
+void OutputRemovePlayer(AttendanceInfo&amp; info)
+{
+	std::cout &lt;&lt; "\n";
+	std::cout &lt;&lt; "Removed player\n";
+	std::cout &lt;&lt; "==============\n";
+	for (int i = 1; i &lt;= info.id_cnt; i++) {
+
+		if (info.grade[i] != 1 &amp;&amp; info.grade[i] != 2 &amp;&amp; info.wedCnt[i] == 0 &amp;&amp; info.weekendCnt[i] == 0) {
+			std::cout &lt;&lt; info.names[i] &lt;&lt; "\n";
+		}
+	}
+}
+
+void AssignId(AttendanceInfo&amp; info, std::string&amp; player)
+{
+	if (info.idByName.count(player) == 0) {
+		info.idByName.insert({ player, ++info.id_cnt });
+		info.names[info.id_cnt] = player;
+	}
+}
+
+int GetIdFromName(AttendanceInfo&amp; info, const std::string&amp; player)
+{
+	return info.idByName[player];
+}
+
+int GetBasePoint(const Day_e day)
+{
+	if (day == MONDAY)    return BASE_POINT_WEEKDAY;
+	if (day == TUESDAY)   return BASE_POINT_WEEKDAY;
+	if (day == WEDNESDAY) return BASE_POINT_WEDNESDAY;
+	if (day == THURSDAY)  return BASE_POINT_WEEKDAY;
+	if (day == FRIDAY)    return BASE_POINT_WEEKDAY;
+	if (day == SATURDAY)  return BASE_POINT_WEEKEND;
+	if (day == SUNDAY)    return BASE_POINT_WEEKEND;
+	return INVALID_POINT;
+}
+
+Day_e GetIndexFromDay(const string&amp; dayString)
+{
+	if (dayString == "monday")    return MONDAY;
+	if (dayString == "tuesday")   return TUESDAY;
+	if (dayString == "wednesday") return WEDNESDAY;
+	if (dayString == "thursday")  return THURSDAY;
+	if (dayString == "friday")    return FRIDAY;
+	if (dayString == "saturday")  return SATURDAY;
+	if (dayString == "sunday")    return SUNDAY;
+	return INVALID_DAY;
+}
+
+void UpdateSpecialDays(AttendanceInfo&amp; info, const int nameIdx, const string&amp; dayString)
+{
+	if (dayString == "wednesday") {
+		info.wedCnt[nameIdx]++;
+	}
+	if (dayString == "saturday") {
+		info.weekendCnt[nameIdx]++;
+	}
+	if (dayString == "sunday") {
+		info.weekendCnt[nameIdx]++;
+	}
+}
+
+void UpdateDayAndPoints(AttendanceInfo&amp; info, const int nameIdx, const int dayIdx, const int add_point)
+{
+	info.dateCnt[nameIdx][dayIdx] += 1;
+	info.points[nameIdx] += add_point;
+}
+
+int main() {
+	RunAttendanceSystem();
+	return 0;
+}
+
+#endif</pre>
+        <hr />
+        <table width="100%">
+            <thead>
+                <tr>
+                    <th align="center">
+                        <small>Generated by</small>
+                        <a href="https://github.com/OpenCppCoverage/OpenCppCoverage/releases">
+                            <strong>OpenCppCoverage (Version: 0.9.9.0)</strong>
+                        </a>
+                    </th>
+                </tr>
+            </thead>
+        </table>
+    </body>
+</html>

@@ -1,0 +1,168 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+        <meta charset="utf-8"/>
+	    <title>attendance_test.cpp</title>
+	    <link href="../../third-party/google-code-prettify/prettify-CppCoverage.css" type="text/css" rel="stylesheet" />
+	    <script type="text/javascript" src="../../third-party/google-code-prettify/prettify.js"></script>
+	</head>
+    <body onload="prettyPrint()">
+        <h4></h4>
+        <pre class="prettyprint lang-cpp linenums">
+#if defined(_DEBUG)
+#include "attendance.h"
+#include &lt;gtest/gtest.h&gt;
+#include &lt;gmock/gmock.h&gt;
+#include &lt;vector&gt;
+#include &lt;string&gt;
+
+using ::testing::Test;
+
+class FixtureAttendance: public Test {
+
+protected:
+    AttendanceInfo info;
+    AttendanceEngine engine;
+
+<span style = "background-color:#dfd">    FixtureAttendance() : info(), engine(info) {}</span>
+};
+
+struct CapturingReporter : public InterfaceRemoveReporter {
+    std::vector&lt;std::string&gt; removed;
+<span style = "background-color:#dfd">    void OnRemoved(const std::string&amp; name) override {
+        removed.push_back(name);
+    }</span>
+};
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestGetBasePoint) {
+    EXPECT_EQ(GetBasePoint(MONDAY), 1);
+    EXPECT_EQ(GetBasePoint(TUESDAY), 1);
+    EXPECT_EQ(GetBasePoint(WEDNESDAY), 3);
+    EXPECT_EQ(GetBasePoint(SATURDAY), 2);
+    EXPECT_EQ(GetBasePoint(SUNDAY), 2);
+    EXPECT_EQ(GetBasePoint(INVALID_DAY), 0);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestGetIndexFromDay) {
+    EXPECT_EQ(GetIndexFromDay("monday"), MONDAY);
+    EXPECT_EQ(GetIndexFromDay("friday"), FRIDAY);
+    EXPECT_EQ(GetIndexFromDay("sunday"), SUNDAY);
+    EXPECT_EQ(GetIndexFromDay("Mon"), INVALID_DAY);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestCalcBonus) {
+    EXPECT_EQ(CalcBonus(10, 9), 10);
+    EXPECT_EQ(CalcBonus(9, 10), 10);
+    EXPECT_EQ(CalcBonus(10, 10), 20);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestCalcGrade) {
+    EXPECT_EQ(CalcGrade(29), NORMAL);
+    EXPECT_EQ(CalcGrade(30), SILVER);
+    EXPECT_EQ(CalcGrade(50), GOLD);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestAssignAndUpdatePoints) {
+    engine.AssignId("alice");
+    engine.AssignId("bob");</span>
+
+<span style = "background-color:#dfd">    int idA = engine.GetIdFromName("alice");
+    int idB = engine.GetIdFromName("bob");
+    ASSERT_EQ(idA, 1);
+    ASSERT_EQ(idB, 2);</span>
+
+<span style = "background-color:#dfd">    engine.UpdateSpecialDays(idA, WEDNESDAY);
+    engine.UpdateDayAndPoints(idA, WEDNESDAY);
+    engine.UpdateDayAndPoints(idA, MONDAY);</span>
+
+<span style = "background-color:#dfd">    engine.UpdateSpecialDays(idB, SATURDAY);
+    engine.UpdateDayAndPoints(idB, SATURDAY);</span>
+
+<span style = "background-color:#dfd">    engine.UpdatePointAndGrades();</span>
+
+<span style = "background-color:#dfd">    EXPECT_EQ(info.points[idA], 4 + 0 /*bonus*/);
+    EXPECT_EQ(info.grade[idA], NORMAL);</span>
+
+<span style = "background-color:#dfd">    EXPECT_EQ(info.points[idB], 2 /*base*/ + 0 /*bonus*/);
+    EXPECT_EQ(info.grade[idB], NORMAL);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestBonusAndGradeApplied) {
+    engine.AssignId("c");
+    int id = engine.GetIdFromName("c");</span>
+
+<span style = "background-color:#dfd">    for (int i = 0; i &lt; 10; ++i) {
+        engine.UpdateSpecialDays(id, WEDNESDAY);
+        engine.UpdateDayAndPoints(id, WEDNESDAY);
+    }</span>
+
+<span style = "background-color:#dfd">    for (int i = 0; i &lt; 10; ++i) engine.UpdateDayAndPoints(id, MONDAY);</span>
+
+<span style = "background-color:#dfd">    engine.UpdatePointAndGrades(); // +10 bonus (wed) =&gt; total 50 -&gt; GOLD
+    EXPECT_EQ(info.points[id], 50);
+    EXPECT_EQ(info.grade[id], GOLD);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestReportRemoved_UsesCapturingReporter) {
+    engine.AssignId("idle");     // never attends -&gt; should be removed
+    engine.AssignId("active");   // attends on weekend -&gt; not removed</span>
+
+<span style = "background-color:#dfd">    int idle = engine.GetIdFromName("idle");
+    int active = engine.GetIdFromName("active");</span>
+
+<span style = "background-color:#dfd">    engine.UpdateSpecialDays(active, SATURDAY);
+    engine.UpdateDayAndPoints(active, SATURDAY);
+    engine.UpdatePointAndGrades();</span>
+
+<span style = "background-color:#dfd">    CapturingReporter reporter;
+    engine.ReportRemoved(reporter);</span>
+
+<span style = "background-color:#dfd">    ASSERT_EQ(reporter.removed.size(), 1u);
+    EXPECT_EQ(reporter.removed[0], "idle");
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestOutputReport)
+{
+    info.id_cnt = 1;
+    info.names[1] = "Alice";
+    info.points[1] = 50;
+    info.grade[1] = GOLD;</span>
+
+<span style = "background-color:#dfd">    info.names[2] = "Charlie";
+    info.points[2] = 30;
+    info.grade[2] = SILVER;
+    OutputReport(info);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestOutputRemovePlayer)
+{
+    info.id_cnt = 1;
+    info.names[1] = "Alice";
+    info.points[1] = 50;
+    info.grade[1] = NORMAL;
+    OutputRemovePlayer(info);
+}</span>
+
+<span style = "background-color:#dfd">TEST_F(FixtureAttendance, TestReadAttendanceList)
+{
+	std::string filename = "attendance_weekday_500.txt";
+    bool isOk = ReadAttendanceList(filename, engine, 500);
+    EXPECT_EQ(isOk, true);
+}</span>
+
+#endif // _DEBUG</pre>
+        <hr />
+        <table width="100%">
+            <thead>
+                <tr>
+                    <th align="center">
+                        <small>Generated by</small>
+                        <a href="https://github.com/OpenCppCoverage/OpenCppCoverage/releases">
+                            <strong>OpenCppCoverage (Version: 0.9.9.0)</strong>
+                        </a>
+                    </th>
+                </tr>
+            </thead>
+        </table>
+    </body>
+</html>
