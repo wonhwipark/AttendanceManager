@@ -13,6 +13,6 @@ D1 O
 D2 O
 D3 O
 D4 O
-D5 X
+D5 X (95%)
 
 <img width="1665" height="520" alt="image" src="https://github.com/user-attachments/assets/d7c8821e-c89f-4d0e-958a-4b9535fae2f5" />
